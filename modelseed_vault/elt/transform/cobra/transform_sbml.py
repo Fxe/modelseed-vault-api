@@ -1,10 +1,9 @@
 from modelseed_vault.core.node import Node
-from modelseed_vault.elt.sbml.parse import parse_elements_with_provenance, parse_reactions_with_provenance
-from modelseed_vault.elt.sbml.parse import parse_species_list
-from pathlib import Path
+from modelseed_vault.elt.transform.cobra.parse import parse_species_list
+from modelseed_vault.core.transform_graph import TransformGraph
 
 
-class ETLSBML:
+class TransformCobraSBML:
 
     def __init__(self, model_id: str):
         self.model_id = model_id
@@ -25,17 +24,6 @@ class ETLSBML:
             else:
                 raise ValueError('@')
         """
-
-    def load(self, sbml_file: Path):
-        with open(str(sbml_file), 'rb') as fh:
-            species = parse_elements_with_provenance(fh, 'species')
-        with open(str(sbml_file), 'rb') as fh:
-            compartment = parse_elements_with_provenance(fh, 'compartment')
-        xpath = "//*[local-name()='model']/*[local-name()='listOfReactions']/*[local-name()='reaction']"
-        with open(str(sbml_file), 'rb') as fh:
-            reaction = parse_reactions_with_provenance(fh, xpath=xpath)
-
-        return {'compartments': compartment, 'species': species, 'reactions': reaction}
 
     def transform_edges(self, node_model, nodes, reactions, wrapper):
         d_node_species = {n.data['id']: n for n in nodes if n.label == 'SBMLSpecies'}
@@ -76,7 +64,8 @@ class ETLSBML:
 
         return res
 
-    def transform(self, model_id: str, model_metadata: dict, compartments, species, reactions, wrapper: str):
+    def transform(self, model_id: str, model_metadata: dict,
+                  compartments, species, reactions, wrapper: str) -> TransformGraph:
         node_model = Node(model_id, "SBMLModel", model_metadata)
 
         l_node_species = [self._transform_species(model_id, x) for x in species['elements']]
@@ -99,11 +88,11 @@ class ETLSBML:
 
     @staticmethod
     def _transform_species(model_id: str, d: dict):
-        return ETLSBML._transform(model_id, d, 'SBMLSpecies')
+        return TransformCobraSBML._transform(model_id, d, 'SBMLSpecies')
 
     @staticmethod
     def _transform_compartment(model_id: str, d: dict):
-        return ETLSBML._transform(model_id, d, 'SBMLCompartment')
+        return TransformCobraSBML._transform(model_id, d, 'SBMLCompartment')
 
     @staticmethod
     def build_stoich_links(node_id, d_node_species: dict, xml_reaction: str, wrapper: str = None):

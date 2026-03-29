@@ -4,6 +4,28 @@ import hashlib
 from lxml import etree
 
 
+def parse_model_tag() -> dict:
+    res = {}
+    pass
+
+
+def parse_parameters() -> list:
+    res = {}
+    pass
+
+def parse_fbc_objectives() -> list:
+    pass
+
+def parse_fbc_gene_products() -> list:
+    pass
+
+def parse_unit_definitions() -> list:
+    pass
+
+def parse_groups() -> list:
+    pass
+
+
 def parse_species_list(xml: str, list_tag: str = "listOfReactants", wrapper: str = None) -> list:
     wrapped = wrapper.format(xml) if wrapper else xml
     root = etree.fromstring(wrapped.encode("utf-8"))
