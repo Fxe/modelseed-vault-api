@@ -1,3 +1,3 @@
 """
-Test package for modelseed_annotation_api.
+Test package for modelseed_vault.
 """ 

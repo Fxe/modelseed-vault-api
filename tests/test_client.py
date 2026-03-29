@@ -3,7 +3,7 @@ Tests for the ModelSEEDAnnotation client.
 """
 
 import pytest
-from modelseed_annotation_api import ModelSEEDAnnotationClient
+from modelseed_vault import ModelSEEDAnnotationClient
 
 
 def test_client_initialization():

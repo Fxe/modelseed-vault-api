@@ -4,7 +4,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
-    name="modelseed_annotation_api",
+    name="modelseed_vault",
     version="0.1.0",
     packages=find_packages(),
     install_requires=[
@@ -18,10 +18,11 @@ setup(
         "cobra>=0.20.0",  # For COBRA APIs
         "pymongo",
         "neo4j",
+        "lxml",
     ],
     author="Filipe Liu",
     author_email="fliu@anl.gov",
-    description="API for ModelSEED annotation services",
+    description="ModelSEED Vault Python API",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/fxe/modelseed_annotation_api",
@@ -36,4 +37,4 @@ setup(
         "Natural Language :: English",
     ],
     python_requires=">=3.7",
-) 
+)

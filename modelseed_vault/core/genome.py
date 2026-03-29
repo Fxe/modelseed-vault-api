@@ -1,4 +1,4 @@
-from modelseed_annotation_api.dao_neo4j import Neo4jDAO
+from modelseed_vault.dao_neo4j import Neo4jDAO
 from modelseedpy.core.msgenome import MSGenome, MSFeature
 
 class GenomicsProtein:

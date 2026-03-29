@@ -1,5 +1,5 @@
-from modelseed_annotation_api.dao_neo4j import Neo4jDAO
-from modelseed_annotation_api.dao_neo4j import GraphNodeRastFunction, GraphNodeProtein
+from modelseed_vault.dao_neo4j import Neo4jDAO
+from modelseed_vault.dao_neo4j import GraphNodeRastFunction, GraphNodeProtein
 
 """
 Main client class for interacting with ModelSEED annotation services.

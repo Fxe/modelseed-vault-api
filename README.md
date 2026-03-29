@@ -5,13 +5,13 @@ A Python library for interacting with ModelSEED annotation services.
 ## Installation
 
 ```bash
-pip install modelseed_annotation_api
+pip install modelseed_vault
 ```
 
 ## Usage
 
 ```python
-from modelseed_annotation_api import ModelSEEDAnnotation
+from modelseed_vault import ModelSEEDAnnotation
 
 # Initialize the client
 client = ModelSEEDAnnotation()
@@ -26,7 +26,7 @@ To set up the development environment:
 
 ```bash
 git clone https://github.com/yourusername/modelseed_annotation_api.git
-cd modelseed_annotation_api
+cd modelseed_vault
 pip install -e .
 ```
 
