@@ -1,3 +1,4 @@
+from modelseed_vault.core.graph_ontology import GENOME_SET, REFSEQ_GENOME, KBASE_GENE, KEGG_ORTHOLOGY
 
 
 class ObjectFactory:
@@ -7,11 +8,11 @@ class ObjectFactory:
 
     def build(self, node):
         labels = node.labels
-        if 'GenomeSet' in labels:
+        if GENOME_SET in labels:
             pass
-        elif 'RefSeqGenome' in labels:
+        elif REFSEQ_GENOME in labels:
             pass
-        elif 'KBaseGene' in labels:
+        elif KBASE_GENE in labels:
             pass
-        elif 'KeggOrthology' in labels:
+        elif KEGG_ORTHOLOGY in labels:
             pass

@@ -2,6 +2,8 @@ from neo4j import GraphDatabase
 import uuid
 import json
 
+from modelseed_vault.core.graph_ontology import PROTEIN_ANNOTATION, RAST, PROTEIN_SEQUENCE, METHOD
+
 
 class Neo4jDAO:
 
@@ -158,19 +160,19 @@ class GraphNode:
 class GraphNodeRastFunction(GraphNode):
 
     def __init__(self, node_id, rast_function, dao: Neo4jDAO):
-        super().__init__(node_id, rast_function, 'ProteinAnnotation', ['ProteinAnnotation', 'RAST'], dao)
+        super().__init__(node_id, rast_function, PROTEIN_ANNOTATION, [PROTEIN_ANNOTATION, RAST], dao)
 
 
 class GraphNodeProtein(GraphNode):
 
     def __init__(self, node_id, rast_function, dao: Neo4jDAO):
-        super().__init__(node_id, rast_function, 'ProteinSequence', ['ProteinSequence'], dao)
+        super().__init__(node_id, rast_function, PROTEIN_SEQUENCE, [PROTEIN_SEQUENCE], dao)
 
 
 class GraphNodeRastExecution(GraphNode):
 
     def __init__(self, node_id, node_key, host_name, analysis_execs, dao):
-        super().__init__(node_id, node_key, 'Method', ['Method'], dao)
+        super().__init__(node_id, node_key, METHOD, [METHOD], dao)
         self.host_name = host_name
         self.analysis_execs = analysis_execs
 

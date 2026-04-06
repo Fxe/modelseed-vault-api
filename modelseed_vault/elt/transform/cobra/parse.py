@@ -1,29 +1,108 @@
 from __future__ import annotations
 from typing import Any, Dict, List, Tuple, Union, BinaryIO
 import hashlib
+import re
 from lxml import etree
 
 
-def parse_model_tag() -> dict:
-    res = {}
-    pass
+def parse_model_tag(fh) -> dict:
+    """
+    Return the attributes of the top-level <model> element as a dict
+    (Clark-notation keys converted to prefixed form, e.g. fbc:strict).
+    """
+    raw_bytes = fh.read()
+    parser = etree.XMLParser(remove_blank_text=False, recover=False, huge_tree=True)
+    root = etree.fromstring(raw_bytes, parser=parser)
+    nodes = root.xpath("//*[local-name()='model']")
+    if not nodes:
+        return {}
+    return get_node_attrib(nodes[0])
 
 
-def parse_parameters() -> list:
-    res = {}
-    pass
+def parse_parameters(fh) -> list:
+    """
+    Return a list of dicts for every <parameter> element inside
+    <listOfParameters>, each containing all XML attributes with
+    prefixed keys (e.g. sboTerm, id, value, constant).
+    """
+    result = parse_elements_with_provenance(fh, "parameter",
+                                            xpath="//*[local-name()='listOfParameters']"
+                                                  "/*[local-name()='parameter']")
+    return result["elements"]
 
-def parse_fbc_objectives() -> list:
-    pass
 
-def parse_fbc_gene_products() -> list:
-    pass
+def parse_fbc_objectives(fh) -> list:
+    """
+    Return a list of dicts for every <fbc:objective> element.
+    Each dict contains the objective attributes plus a
+    '_flux_objectives' key holding a list of fluxObjective attribute dicts.
+    """
+    raw_bytes = fh.read()
+    parser = etree.XMLParser(remove_blank_text=False, recover=False, huge_tree=True)
+    root = etree.fromstring(raw_bytes, parser=parser)
 
-def parse_unit_definitions() -> list:
-    pass
+    objectives = root.xpath("//*[local-name()='objective']")
+    results = []
+    for obj in objectives:
+        d = get_node_attrib(obj)
+        flux_objs = obj.xpath("*[local-name()='listOfFluxObjectives']/*[local-name()='fluxObjective']")
+        d["_flux_objectives"] = [get_node_attrib(fo) for fo in flux_objs]
+        results.append(d)
+    return results
 
-def parse_groups() -> list:
-    pass
+
+def parse_fbc_gene_products(fh) -> list:
+    """
+    Return a list of dicts for every <fbc:geneProduct> element,
+    each containing all XML attributes with prefixed keys
+    (e.g. fbc:id, fbc:label, metaid, sboTerm).
+    """
+    raw_bytes = fh.read()
+    parser = etree.XMLParser(remove_blank_text=False, recover=False, huge_tree=True)
+    root = etree.fromstring(raw_bytes, parser=parser)
+
+    gene_products = root.xpath("//*[local-name()='geneProduct']")
+    return [get_node_attrib(gp) for gp in gene_products]
+
+
+def parse_unit_definitions(fh) -> list:
+    """
+    Return a list of dicts for every <unitDefinition> element.
+    Each dict contains the unitDefinition attributes plus a
+    '_units' key holding a list of <unit> attribute dicts.
+    """
+    raw_bytes = fh.read()
+    parser = etree.XMLParser(remove_blank_text=False, recover=False, huge_tree=True)
+    root = etree.fromstring(raw_bytes, parser=parser)
+
+    unit_defs = root.xpath("//*[local-name()='unitDefinition']")
+    results = []
+    for ud in unit_defs:
+        d = get_node_attrib(ud)
+        units = ud.xpath("*[local-name()='listOfUnits']/*[local-name()='unit']")
+        d["_units"] = [get_node_attrib(u) for u in units]
+        results.append(d)
+    return results
+
+
+def parse_groups(fh) -> list:
+    """
+    Return a list of dicts for every <groups:group> element.
+    Each dict contains the group attributes plus a
+    '_members' key holding a list of idRef strings from <groups:member>.
+    """
+    raw_bytes = fh.read()
+    parser = etree.XMLParser(remove_blank_text=False, recover=False, huge_tree=True)
+    root = etree.fromstring(raw_bytes, parser=parser)
+
+    groups = root.xpath("//*[local-name()='group']")
+    results = []
+    for grp in groups:
+        d = get_node_attrib(grp)
+        members = grp.xpath("*[local-name()='listOfMembers']/*[local-name()='member']")
+        d["_members"] = [get_node_attrib(m) for m in members]
+        results.append(d)
+    return results
 
 
 def parse_species_list(xml: str, list_tag: str = "listOfReactants", wrapper: str = None) -> list:
@@ -286,3 +365,122 @@ def parse_reactions_with_provenance(fh, xpath: str | None = None) -> Dict[str, A
         results.append(d)
 
     return {"file_sha256": _sha256(raw_bytes), "elements": results}
+
+
+def _parse_gpa_node(node) -> List[List[str]]:
+    """
+    Recursively parse an fbc gene product association node.
+    Returns a list of complexes; each complex is a list of gene fbc:id strings.
+    - geneProductRef  → [[gene_id]]
+    - and             → [all children flattened into one complex]
+    - or              → one complex per child
+    """
+    local = etree.QName(node.tag).localname
+    if local == "geneProductRef":
+        gene_id = next(
+            (v for k, v in node.attrib.items() if k.endswith("}geneProduct") or k == "geneProduct"),
+            None,
+        )
+        return [[gene_id]] if gene_id else []
+    if local == "and":
+        genes: List[str] = []
+        for child in node:
+            for grp in _parse_gpa_node(child):
+                genes.extend(grp)
+        return [genes] if genes else []
+    if local == "or":
+        result: List[List[str]] = []
+        for child in node:
+            result.extend(_parse_gpa_node(child))
+        return result
+    return []
+
+
+def parse_gene_associations(fh) -> Dict[str, List[List[str]]]:
+    """
+    Extract fbc:geneProductAssociation for every reaction in an SBML file.
+
+    Returns:
+        dict mapping reaction id → list of complexes,
+        where each complex is a list of gene fbc:id strings (AND group).
+        OR relationships between complexes are represented as separate list entries.
+    """
+    raw_bytes = fh.read()
+    parser = etree.XMLParser(remove_blank_text=False, recover=False, huge_tree=True)
+    root = etree.fromstring(raw_bytes, parser=parser)
+
+    result: Dict[str, List[List[str]]] = {}
+    for rxn in root.xpath("//*[local-name()='reaction']"):
+        rxn_id = rxn.attrib.get("id", "")
+        gpas = rxn.xpath("*[local-name()='geneProductAssociation']")
+        if not gpas:
+            result[rxn_id] = []
+            continue
+        children = list(gpas[0])
+        result[rxn_id] = _parse_gpa_node(children[0]) if children else []
+    return result
+
+
+# ── Notes-based GPR scanner ────────────────────────────────────────────────────
+
+def _tokenize_gpr(expr: str) -> List[str]:
+    return [t for t in re.findall(r'\(|\)|and|or|[^\s()]+', expr, re.IGNORECASE) if t]
+
+
+def _gpr_parse(tokens: List[str], pos: int) -> Tuple[List[List[str]], int]:
+    """OR level — returns list of complexes (isozyme alternatives)."""
+    complexes, pos = _gpr_and(tokens, pos)
+    while pos < len(tokens) and tokens[pos].lower() == 'or':
+        pos += 1
+        right, pos = _gpr_and(tokens, pos)
+        complexes = complexes + right
+    return complexes, pos
+
+
+def _gpr_and(tokens: List[str], pos: int) -> Tuple[List[List[str]], int]:
+    """AND level — distributes AND over OR sub-expressions."""
+    result, pos = _gpr_atom(tokens, pos)
+    while pos < len(tokens) and tokens[pos].lower() == 'and':
+        pos += 1
+        right, pos = _gpr_atom(tokens, pos)
+        result = [l + r for l in result for r in right]
+    return result, pos
+
+
+def _gpr_atom(tokens: List[str], pos: int) -> Tuple[List[List[str]], int]:
+    """Atom: parenthesized sub-expression or single gene id."""
+    if pos >= len(tokens):
+        return [], pos
+    if tokens[pos] == '(':
+        pos += 1
+        result, pos = _gpr_parse(tokens, pos)
+        if pos < len(tokens) and tokens[pos] == ')':
+            pos += 1
+        return result, pos
+    return [[tokens[pos]]], pos + 1
+
+
+def scan_gpr_nodes(reaction_xml: str) -> List[List[str]]:
+    """
+    Extract GPR complexes from a reaction's raw XML by scanning the legacy
+    ``<notes><html:p>GENE ASSOCIATION: ...</html:p></notes>`` pattern.
+
+    Parses the boolean expression using AND/OR/parentheses:
+    - AND  → genes belong to the same protein complex
+    - OR   → separate isozyme alternatives
+
+    Returns a list of complexes in the same format as ``_complexes``:
+        [ [gene_id, ...], ... ]
+    Returns ``[]`` if no GENE ASSOCIATION note is found or the expression is empty.
+    """
+    m = re.search(r'GENE[_ ]ASSOCIATION\s*:\s*([^\n<]+)', reaction_xml, re.IGNORECASE)
+    if not m:
+        return []
+    expr = m.group(1).strip()
+    if not expr or expr.lower() == 'none':
+        return []
+    tokens = _tokenize_gpr(expr)
+    if not tokens:
+        return []
+    complexes, _ = _gpr_parse(tokens, 0)
+    return [c for c in complexes if c]

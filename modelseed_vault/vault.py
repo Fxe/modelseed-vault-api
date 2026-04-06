@@ -1,5 +1,6 @@
 import requests
 import json
+from modelseed_vault.core.transform_graph import Node, HashNode
 
 
 class Vault:
@@ -61,10 +62,24 @@ class Vault:
         return res
     """
 
-    def add_node2(self, node):
-        node_type = node.label
+    def add_node2(self, node: Node):
+        node_type = node.primary_label
         node_id = node.key
         properties = node.data
+        """
+        example
+        curl -X 'POST' \
+  'http://localhost:18080/graph/node/Fruit/banana?labels=Yellow&labels=Tree' \
+  -H 'accept: */*' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "additionalProp1": "x",
+  "additionalProp2": "y",
+  "additionalProp3": "z"
+}'
+        add node.labels
+        """
+        # node.labels
 
         url = f"{self.url}/graph/node/{node_type}/{node_id}"
         headers = {
@@ -82,12 +97,40 @@ class Vault:
             return json.loads(res.content)
         return None
 
+    def get_node2(self, node_type, node_id) -> Node:
+        url = f"{self.url}/graph/node/{node_type}/{node_id}"
+        res = self.session.get(url)
+        if res.status_code != 200:
+            return None
+        if res.content:
+            return json.loads(res.content)
+        return None
+
     def list_nodes(self, node_type):
         url = f"{self.url}/graph/node/{node_type}"
         res = requests.get(url)
         if res.status_code != 200:
             return None
         return json.loads(res.content)
+
+    def add_protein(self, protein_node: HashNode) -> str:
+        url = f"{self.url}/protein/"
+        headers = {
+            "accept": "*/*",
+            "Content-Type": "application/json",
+        }
+        res = self.session.post(url, headers=headers, json=protein_node._value)
+        res.raise_for_status()
+        return res.content.decode('utf-8')
+
+    def get_protein_by_sha256(self, sha256: str):
+        url = f"{self.url}/protein/sha256/{sha256}"
+        res = self.session.get(url)
+        if res.status_code != 200:
+            return None
+        if res.content:
+            return json.loads(res.content)
+        return None
 
     def add_edge(self, node_from_eid, node_to_eid, edge_type, props=None):
         from urllib.parse import quote
@@ -101,11 +144,20 @@ class Vault:
         }
         return self.session.post(url, headers=headers, json=props)
 
-    def get_node_child(self, node, rel_type=None):
-        url = f"{self.url}/graph/node/{node.label}/{node.key}/child"
+    def get_node_child(self, node: Node, rel_type=None):
+        url = f"{self.url}/graph/node/{node.primary_label}/{node.key}/child"
         if rel_type:
             url += f"?edgeType={rel_type}"
-        res = requests.get(url)
+        res = self.session.get(url)
+        if res.status_code != 200:
+            raise
+        return json.loads(res.content)
+
+    def get_node_parent(self, node: Node, rel_type=None):
+        url = f"{self.url}/graph/node/{node.primary_label}/{node.key}/parent"
+        if rel_type:
+            url += f"?edgeType={rel_type}"
+        res = self.session.get(url)
         if res.status_code != 200:
             raise
         return json.loads(res.content)

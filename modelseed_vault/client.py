@@ -1,5 +1,6 @@
 from modelseed_vault.dao_neo4j import Neo4jDAO
 from modelseed_vault.dao_neo4j import GraphNodeRastFunction, GraphNodeProtein
+from modelseed_vault.core.graph_ontology import GENOME_SET, REFSEQ_GENOME, HAS_GENOME, HAS_ANNOTATION
 
 """
 Main client class for interacting with ModelSEED annotation services.
@@ -21,13 +22,15 @@ class ModelSEEDAnnotationClient:
         self.dao_vault = dao_vault
 
     def get_genome_set(self, key=None, node_id=None):
-        query_cypher = f'MATCH (n:GenomeSet)-[r:has_genome]-(g:RefSeqGenome)  WHERE n.key = "{key}" RETURN g;'
+        query_cypher = f'MATCH (n:{GENOME_SET})-[r:{HAS_GENOME}]-(g:{REFSEQ_GENOME})  WHERE n.key = "{key}" RETURN g;'
         if node_id:
-            query_cypher = f'MATCH (n:GenomeSet)-[r:has_genome]-(g:RefSeqGenome)  ' \
-                           f'WHERE elementId(n) = "{node_id}" RETURN g;'
+            query_cypher = (
+                f'MATCH (n:{GENOME_SET})-[r:{HAS_GENOME}]-(g:{REFSEQ_GENOME})  '
+                f'WHERE elementId(n) = "{node_id}" RETURN g;'
+            )
 
         node_elements = self.dao_vault.query(query_cypher)
-        node_set = self.dao_vault.get_node(node_id, "GenomeSet")
+        node_set = self.dao_vault.get_node(node_id, GENOME_SET)
 
         return node_set, node_elements
 
@@ -53,7 +56,7 @@ class ModelSEEDAnnotationClient:
             if node_rast is None:
                 node_rast = GraphNodeRastFunction(None, rast_function, self.dao_vault).create()
 
-            self.dao_vault.create_edge('has_annotation', node_protein, node_rast, ext)
+            self.dao_vault.create_edge(HAS_ANNOTATION, node_protein, node_rast, ext)
 
     def get_protein_ontology(self, protein_id: str) -> dict:
         """
