@@ -1,4 +1,5 @@
 import requests
+from urllib.parse import quote
 import json
 from modelseed_vault.core.transform_graph import Node, HashNode
 
@@ -13,7 +14,7 @@ class Vault:
         self.session.close()
 
     def cobra_get_model(self, model_id: str):
-        url = f"{self.url}/cobra/model/{model_id}"
+        url = f"{self.url}/cobra/model/{quote(model_id, safe='')}"
         res = self.session.get(url)
         if res.status_code != 200:
             return None
@@ -41,7 +42,7 @@ class Vault:
         return json.loads(res.content)
 
     def add_node(self, node_type, node_id, properties):
-        url = f"{self.url}/graph/node/{node_type}/{node_id}"
+        url = f"{self.url}/graph/node/{quote(node_type, safe='')}/{quote(node_id, safe='')}"
         headers = {
             "accept": "*/*",
             "Content-Type": "application/json",
@@ -80,8 +81,8 @@ class Vault:
         add node.labels
         """
         # node.labels
-
-        url = f"{self.url}/graph/node/{node_type}/{node_id}"
+        url = f"{self.url}/graph/node/{node_type}/{quote(node_id, safe='')}"
+        # url = f"{self.url}/graph/node/{node_type}/{node_id}"
         headers = {
             "accept": "*/*",
             "Content-Type": "application/json",
@@ -112,7 +113,7 @@ class Vault:
         return response.json()
 
     def get_node(self, node_type, node_id) -> Node | None:
-        url = f"{self.url}/graph/node/{node_type}/{node_id}"
+        url = f"{self.url}/graph/node/{quote(node_type, safe='')}/{quote(node_id, safe='')}"
         res = self.session.get(url)
         res.raise_for_status()
 
@@ -121,7 +122,7 @@ class Vault:
         return None
 
     def list_nodes(self, node_type: str) -> Node | None:
-        url = f"{self.url}/graph/node/{node_type}"
+        url = f"{self.url}/graph/node/{quote(node_type, safe='')}"
         res = requests.get(url)
         res.raise_for_status()
 
@@ -159,7 +160,7 @@ class Vault:
         return self.session.post(url, headers=headers, json=props)
 
     def get_node_child(self, node: Node, rel_type=None):
-        url = f"{self.url}/graph/node/{node.primary_label}/{node.key}/child"
+        url = f"{self.url}/graph/node/{quote(node.primary_label, safe='')}/{quote(node.key, safe='')}/child"
         if rel_type:
             url += f"?edgeType={rel_type}"
         res = self.session.get(url)
@@ -168,7 +169,7 @@ class Vault:
         return json.loads(res.content)
 
     def get_node_parent(self, node: Node, rel_type=None):
-        url = f"{self.url}/graph/node/{node.primary_label}/{node.key}/parent"
+        url = f"{self.url}/graph/node/{quote(node.primary_label, safe='')}/{quote(node.key, safe='')}/parent"
         if rel_type:
             url += f"?edgeType={rel_type}"
         res = self.session.get(url)
