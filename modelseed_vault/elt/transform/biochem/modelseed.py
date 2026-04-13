@@ -5,7 +5,7 @@ def clean_none(cpd):
     return {k: v for k, v in cpd.items() if v is not None}
 
 
-def transform(compounds):
+def transform_compound(compounds):
     nodes = {}
     for _cpd in compounds:
         cpd = _cpd.copy()
@@ -15,11 +15,13 @@ def transform(compounds):
             cpd['notes'] = '; '.join(cpd['notes'])
         node = Node(cpd['id'], "ModelSEEDCompound", data=clean_none(cpd))
         nodes[node.id] = node
+    return nodes
 
 
-def transform_reactions(reactions):
-    compound_eid = {}
+def transform_reactions(reactions, compound_eid):
+    #compound_eid = {}
     edges = []
+    nodes = []
 
     for _rxn in reactions:
         rxn_id = _rxn['id']
@@ -55,6 +57,7 @@ def transform_reactions(reactions):
             del rxn['thermodynamics']
 
         node = Node(rxn_id, "ModelSEEDReaction", data=clean_none(rxn))
+        nodes.append(node)
 
         for o in stoich:
             edges.append([('ModelSEEDReaction', rxn_id), 'has_stoichiometry_coefficient',
@@ -62,10 +65,17 @@ def transform_reactions(reactions):
 
     for e in edges:
         if e[2][1] not in compound_eid:
-            compound_node = vault.get_node('ModelSEEDCompound', e[2][1])
-            if compound_node is not None:
-                compound_eid[compound_node['entry']] = compound_node['elementId']
+            raise ValueError(f"missing eid {e[2][1]}")
+            #compound_node = vault.get_node('ModelSEEDCompound', e[2][1])
+            #if compound_node is not None:
+            #    compound_eid[compound_node['entry']] = compound_node['elementId']
+
+    """
     for e in edges:
         reaction_node = vault.get_node('ModelSEEDReaction', e[0][1])
         if reaction_node is not None:
             vault.add_edge(reaction_node['elementId'], compound_eid[e[2][1]], e[1], e[3])
+    """
+
+    return nodes, edges
+

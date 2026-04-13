@@ -88,29 +88,43 @@ class Vault:
         }
         return self.session.post(url, headers=headers, json=properties)
 
-    def get_node(self, node_type, node_id):
+    def bulk_add_nodes(self, nodes):
+        url = f"{self.url}/graph/bulk/nodes"
+        headers = {
+            "accept": "*/*",
+            "Content-Type": "application/json",
+        }
+        data = []
+        for node in nodes:
+            node_labels = []
+            if node.labels is not None:
+                node_labels = [x for x in node.labels]
+            data.append({
+                "type": node.primary_label,
+                "id": node.key,
+                "labels": node_labels,
+                "properties": node.data
+            })
+
+        response = self.session.post(url, headers=headers, json=data)
+        response.raise_for_status()
+
+        return response.json()
+
+    def get_node(self, node_type, node_id) -> Node | None:
         url = f"{self.url}/graph/node/{node_type}/{node_id}"
         res = self.session.get(url)
-        if res.status_code != 200:
-            return None
+        res.raise_for_status()
+
         if res.content:
             return json.loads(res.content)
         return None
 
-    def get_node2(self, node_type, node_id) -> Node:
-        url = f"{self.url}/graph/node/{node_type}/{node_id}"
-        res = self.session.get(url)
-        if res.status_code != 200:
-            return None
-        if res.content:
-            return json.loads(res.content)
-        return None
-
-    def list_nodes(self, node_type):
+    def list_nodes(self, node_type: str) -> Node | None:
         url = f"{self.url}/graph/node/{node_type}"
         res = requests.get(url)
-        if res.status_code != 200:
-            return None
+        res.raise_for_status()
+
         return json.loads(res.content)
 
     def add_protein(self, protein_node: HashNode) -> str:
