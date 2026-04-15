@@ -112,6 +112,69 @@ class Vault:
 
         return response.json()
 
+    def bulk_add_nodes2(self, nodes):
+        url = f"{self.url}/graph/bulk/nodes2"
+        headers = {
+            "accept": "*/*",
+            "Content-Type": "application/json",
+        }
+        data = []
+        for node in nodes:
+            node_labels = []
+            if node.labels is not None:
+                node_labels = [x for x in node.labels]
+            data.append({
+                "type": node.primary_label,
+                "id": node.key,
+                "labels": node_labels,
+                "properties": node.data
+            })
+
+        response = self.session.post(url, headers=headers, json=data)
+        response.raise_for_status()
+
+        return response.json()
+
+    def bulk_add_edges(self, edges):
+        url = f"{self.url}/graph/bulk/edges"
+        headers = {
+            "accept": "*/*",
+            "Content-Type": "application/json",
+        }
+        data = []
+        for _edge in edges:
+            data.append({
+                "srcElementId": _edge[0],
+                "dstElementId": _edge[2],
+                "type": _edge[1],
+                "properties": _edge[3]
+            })
+
+        response = self.session.post(url, headers=headers, json=data)
+        response.raise_for_status()
+
+        return response.json()
+
+    def bulk_add_edges2(self, edges):
+        url = f"{self.url}/graph/bulk/edges2"
+        headers = {
+            "accept": "*/*",
+            "Content-Type": "application/json",
+        }
+        data = []
+        for _edge in edges:
+            data.append({
+                "srcElementId": _edge[0],
+                "dstElementId": _edge[2],
+                "type": _edge[1],
+                "properties": _edge[3]
+            })
+
+        response = self.session.post(url, headers=headers, json=data)
+        response.raise_for_status()
+
+        return response.json()
+
     def get_node(self, node_type, node_id) -> Node | None:
         url = f"{self.url}/graph/node/{quote(node_type, safe='')}/{quote(node_id, safe='')}"
         res = self.session.get(url)
