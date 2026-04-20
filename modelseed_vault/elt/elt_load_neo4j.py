@@ -8,6 +8,41 @@ class LoadNeo4j:
     def __init__(self, vault: Vault):
         self.vault = vault
 
+    def load2(self, graph: TransformGraph):
+
+        # find all nodes already in vault (these are proxies)
+        refs = set()
+        for node_type in graph.t_nodes:
+            for node in graph.t_nodes[node_type].values():
+                refs.add((node.primary_label, node.key))
+        query_result = self.vault.query_eid(refs)
+
+        node_to_eids = {(ref['type'], ref['key']): ref['elementId'] for ref in query_result if
+                        ref['elementId'] is not None}
+
+        # build load node payload for new nodes
+        payload_nodes = []
+        for node_type in graph.t_nodes:
+            for node in graph.t_nodes[node_type].values():
+                tkp = (node.primary_label, node.key)
+                if tkp not in node_to_eids:
+                    payload_nodes.append(node)
+
+        bulk_add_node_result = self.vault.bulk_add_nodes2(payload_nodes)
+        for k in bulk_add_node_result:
+            primary_label, key = k.split('/')
+            node_to_eids[(primary_label, key)] = bulk_add_node_result[k]
+
+        payload_edges = []
+        for edge_type in graph.t_edges:
+            for o, u in graph.t_edges[edge_type].items():
+                payload_edges.append([node_to_eids[(u.src.primary_label, u.src.key)],
+                                      u.label,
+                                      node_to_eids[(u.dst.primary_label, u.dst.key)],
+                                      u.data])
+                
+        self.vault.bulk_add_edges2(payload_edges)
+
     def load(self, graph: TransformGraph):
         """Write a TransformGraph to Neo4j via the Vault REST API.
 

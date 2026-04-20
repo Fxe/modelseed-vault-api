@@ -161,6 +161,9 @@ class TransformGraph(DiGraph):
         self.t_nodes = {}
         self.t_edges = {}
 
+    def get_node_by_key_label_pair(self, key, label) -> Node:
+        return self.t_nodes.get(label, {}).get(f"{label}/{key}")
+
     def concat(self, graph: "TransformGraph") -> "TransformGraph":
         """Merge another TransformGraph into this one and return the result.
 

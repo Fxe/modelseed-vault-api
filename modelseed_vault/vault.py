@@ -112,7 +112,7 @@ class Vault:
 
         return response.json()
 
-    def bulk_add_nodes2(self, nodes):
+    def bulk_add_nodes2(self, nodes) -> dict:
         url = f"{self.url}/graph/bulk/nodes2"
         headers = {
             "accept": "*/*",
@@ -135,7 +135,7 @@ class Vault:
 
         return response.json()
 
-    def bulk_add_edges(self, edges):
+    def bulk_add_edges(self, edges) -> dict:
         url = f"{self.url}/graph/bulk/edges"
         headers = {
             "accept": "*/*",
@@ -168,6 +168,27 @@ class Vault:
                 "dstElementId": _edge[2],
                 "type": _edge[1],
                 "properties": _edge[3]
+            })
+
+        response = self.session.post(url, headers=headers, json=data)
+        response.raise_for_status()
+
+        return response.json()
+
+    def query_eid(self, refs) -> list:
+        """
+        refs -> iterable[Pair( Label/Type, Key/Entry )]
+        """
+        url = f"{self.url}/graph/bulk/nodes/get/elementId"
+        headers = {
+            "accept": "*/*",
+            "Content-Type": "application/json",
+        }
+        data = []
+        for _ref in refs:
+            data.append({
+                "key": _ref[1],
+                "type": _ref[0]
             })
 
         response = self.session.post(url, headers=headers, json=data)
