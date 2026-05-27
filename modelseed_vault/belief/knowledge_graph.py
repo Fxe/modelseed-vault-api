@@ -25,7 +25,7 @@ class KnowledgeGraphBuilder:
 
     @staticmethod
     def _make_node(raw):
-        return Node(raw['entry'], raw['labels'][0], data=raw)
+        return Node(raw['entry'], raw['type'], data=raw)
 
     def expand(self, node: Node, child=True, parent=True):
         self.visited.add(node.id)

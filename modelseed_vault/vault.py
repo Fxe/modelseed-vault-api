@@ -196,7 +196,7 @@ class Vault:
 
         return response.json()
 
-    def get_node(self, node_type, node_id) -> Node | None:
+    def get_node(self, node_type, node_id) -> dict | None:
         url = f"{self.url}/graph/node/{quote(node_type, safe='')}/{quote(node_id, safe='')}"
         res = self.session.get(url)
         res.raise_for_status()

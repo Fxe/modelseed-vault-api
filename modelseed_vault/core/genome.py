@@ -1,6 +1,39 @@
 from modelseed_vault.dao_neo4j import Neo4jDAO
 from modelseed_vault.core.hash import HashString
 from modelseedpy.core.msgenome import MSGenome, MSFeature
+from enum import Enum, auto
+
+
+class SeqType(Enum):
+    BASIC = auto()      # Only 20 standard amino acids
+    EXTENDED = auto()   # Contains extended amino acids (U, O, B, Z, J, X)
+    WITH_GAP_STOP = auto()  # Contains gap characters (-)
+    INVALID = auto()    # Contains characters outside the vocabulary
+
+
+BASIC_AA = set("ARNDCQEGHILKMFPSTWYV")
+EXTENDED_AA = set("UOBZJX")
+GAP_STOP = set("-*")
+
+ALL_VALID = BASIC_AA | EXTENDED_AA | GAP_STOP
+
+
+def classify_protein_sequence(seq: str) -> SeqType:
+    seq = seq.upper()
+
+    if any(c not in ALL_VALID for c in seq):
+        return SeqType.INVALID
+
+    has_gap_stop = any(c in GAP_STOP for c in seq)
+    has_extended = any(c in EXTENDED_AA for c in seq)
+
+    # Priority-based classification
+    if has_gap_stop:
+        return SeqType.WITH_GAP_STOP
+    if has_extended:
+        return SeqType.EXTENDED
+
+    return SeqType.BASIC
 
 
 class ProteinSequence(HashString):
