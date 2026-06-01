@@ -1,8 +1,122 @@
+from __future__ import annotations
+
 from typing import Iterable, Optional
 import json
 from pathlib import Path
 import networkx as nx
 from collections import defaultdict
+
+
+def collect_triple(center: str, edges: list) -> tuple:
+    upstream = None    # closest neighbor with end <= center_start
+    downstream = None  # closest neighbor with start >= center_end
+    upstream_dist = float('inf')
+    downstream_dist = float('inf')
+    center_start = center_end = None
+
+    for e in edges:
+        src = e['source']['entry']
+        tgt = e['target']['entry']
+        p = e['properties']
+
+        if src == center:
+            # center is source; neighbor is target
+            cs, ce = p['source_start'], p['source_end']
+            ns, ne = p['target_start'], p['target_end']
+            neighbor = tgt
+        elif tgt == center:
+            # center is target; neighbor is source
+            cs, ce = p['target_start'], p['target_end']
+            ns, ne = p['source_start'], p['source_end']
+            neighbor = src
+        else:
+            continue
+
+        center_start, center_end = cs, ce
+
+        if ne <= cs:  # neighbor is upstream
+            d = cs - ne
+            if d < upstream_dist:
+                upstream_dist = d
+                upstream = neighbor
+        elif ns >= ce:  # neighbor is downstream
+            d = ns - ce
+            if d < downstream_dist:
+                downstream_dist = d
+                downstream = neighbor
+
+    return upstream, center, downstream
+
+
+class QuintuplePairBuilder:
+    """
+    Build fc_adj_pairs and fc_adj_5tuples from per-genome ec + chain files using
+    contig-level window reconstruction.
+
+    Unlike TriplePairBuilder (which uses per-feature nearest-neighbour lookups),
+    this class uses build_windows_from_edges to reconstruct full contig gene order
+    and slides radius-1 (triple) and radius-2 (quintuple) windows in the correct
+    5'→3' transcriptional direction.
+
+    Parameters
+    ----------
+    gap_filter : int or None
+        Maximum intergenic gap (bp) to allow inside a window.  Set ~200 for
+        strict operon membership; None to keep all adjacent pairs.
+    strand_filter : bool
+        If True, only emit windows where all genes share the same strand.
+
+    Attributes
+    ----------
+    fc_adj_pairs : dict[(f_up, f_center, f_down), list[genome_id]]
+        Radius-1 windows in transcriptional order.
+    fc_adj_5tuples : dict[(f1, f_x, f_center, f_y, f2), list[genome_id]]
+        Radius-2 windows in transcriptional order.
+    """
+
+    def __init__(self, gap_filter=None, strand_filter=True):
+        self.gap_filter = gap_filter
+        self.strand_filter = strand_filter
+        self.fc_adj_pairs: dict = {}
+        self.fc_adj_5tuples: dict = {}
+
+    # ------------------------------------------------------------------
+    def add(self, file_ec: Path, file_chain: Path) -> None:
+        """Ingest one genome's ec + chain files."""
+        genome_h = file_ec.stem
+        with open(file_ec) as fh:
+            feature_ec = json.load(fh)
+        with open(file_chain) as fh:
+            feature_chain = json.load(fh)
+
+        edges = [o for o in feature_chain if o['type'] == 'ADJACENT_TO']
+        triples, quintuples = build_windows_from_edges(
+            edges,
+            gap_filter=self.gap_filter,
+            strand_filter=self.strand_filter,
+        )
+
+        def _fn(fid):
+            v = feature_ec.get(fid)
+            return v[1] if v else None
+
+        for triple in triples:
+            key = tuple(_fn(fid) for fid in triple)
+            if None in key:
+                continue
+            if key in self.fc_adj_pairs:
+                self.fc_adj_pairs[key].append(genome_h)
+            else:
+                self.fc_adj_pairs[key] = [genome_h]
+
+        for quint in quintuples:
+            key = tuple(_fn(fid) for fid in quint)
+            if None in key:
+                continue
+            if key in self.fc_adj_5tuples:
+                self.fc_adj_5tuples[key].append(genome_h)
+            else:
+                self.fc_adj_5tuples[key] = [genome_h]
 
 
 class TriplePairBuilder:
@@ -314,47 +428,6 @@ def transition_probs(G: nx.DiGraph, function: str, top_k: int | None = None,
     ]
     rows.sort(key=lambda r: r[1], reverse=True)
     return rows[:top_k] if top_k else rows
-
-
-def collect_triple(center: str, edges: list) -> tuple:
-    upstream = None    # closest neighbor with end <= center_start
-    downstream = None  # closest neighbor with start >= center_end
-    upstream_dist = float('inf')
-    downstream_dist = float('inf')
-    center_start = center_end = None
-
-    for e in edges:
-        src = e['source']['entry']
-        tgt = e['target']['entry']
-        p = e['properties']
-
-        if src == center:
-            # center is source; neighbor is target
-            cs, ce = p['source_start'], p['source_end']
-            ns, ne = p['target_start'], p['target_end']
-            neighbor = tgt
-        elif tgt == center:
-            # center is target; neighbor is source
-            cs, ce = p['target_start'], p['target_end']
-            ns, ne = p['source_start'], p['source_end']
-            neighbor = src
-        else:
-            continue
-
-        center_start, center_end = cs, ce
-
-        if ne <= cs:  # neighbor is upstream
-            d = cs - ne
-            if d < upstream_dist:
-                upstream_dist = d
-                upstream = neighbor
-        elif ns >= ce:  # neighbor is downstream
-            d = ns - ce
-            if d < downstream_dist:
-                downstream_dist = d
-                downstream = neighbor
-
-    return (upstream, center, downstream)
 
 
 def build_transition_graph(fc_adj_pairs: dict, total_genomes: int) -> nx.DiGraph:
