@@ -137,6 +137,29 @@ def extract_windows(
         Each is a list of function-name tuples (length 3 or 5).
         Windows containing any unannotated gene (None function) are dropped.
     """
+    triples_wf, quintuples_wf = extract_windows_with_features(
+        file_ec, file_chain, gap_filter=gap_filter, strand_filter=strand_filter
+    )
+    return [w for w, _ in triples_wf], [w for w, _ in quintuples_wf]  # type: ignore[return-value]
+
+
+def extract_windows_with_features(
+    file_ec: Path,
+    file_chain: Path,
+    gap_filter: Optional[int] = None,
+    strand_filter: bool = True,
+) -> tuple[list[tuple[tuple, str]], list[tuple[tuple, str]]]:
+    """
+    Like extract_windows but also returns the center feature ID for each window.
+
+    Returns
+    -------
+    (triples, quintuples)
+        Each is a list of (fn_window_tuple, center_feature_id) pairs.
+        The center feature ID is the middle element of the raw feature-ID window
+        (index 1 for triples, index 2 for quintuples).
+        Windows containing any unannotated gene are dropped.
+    """
     with open(file_ec) as fh:
         feature_ec = json.load(fh)
     with open(file_chain) as fh:
@@ -151,17 +174,17 @@ def extract_windows(
         v = feature_ec.get(fid)
         return v[1] if v else None
 
-    triples = [
-        tuple(_fn(fid) for fid in t)
-        for t in raw_triples
-        if all(_fn(fid) is not None for fid in t)
-    ]
-    quintuples = [
-        tuple(_fn(fid) for fid in q)
-        for q in raw_quintuples
-        if all(_fn(fid) is not None for fid in q)
-    ]
-    return triples, quintuples  # type: ignore[return-value]
+    triples: list[tuple[tuple, str]] = []
+    for t in raw_triples:
+        if all(_fn(fid) is not None for fid in t):
+            triples.append((tuple(_fn(fid) for fid in t), t[1]))  # type: ignore[arg-type]
+
+    quintuples: list[tuple[tuple, str]] = []
+    for q in raw_quintuples:
+        if all(_fn(fid) is not None for fid in q):
+            quintuples.append((tuple(_fn(fid) for fid in q), q[2]))  # type: ignore[arg-type]
+
+    return triples, quintuples
 
 
 # ---------------------------------------------------------------------------
@@ -294,7 +317,7 @@ class ConformityScorer:
             p, _ = self.lookup_prob(window)
             if p <= 0:
                 return
-            lp = math.log(p)
+            lp = max(math.log(p), self.floor)
             center = window[len(window) // 2]
             per_center[center].append(lp)
             all_lp.append(lp)
@@ -338,17 +361,24 @@ class ConformityScorer:
     # ------------------------------------------------------------------ scoring
 
     def _zscore(self, log_prob: float, center: str) -> float:
-        """Z-score relative to per-center null (falls back to global null)."""
+        """Z-score relative to per-center null (falls back to global null).
+
+        Per-center std is floored at 10% of the global std to prevent
+        blow-up when a center has very consistent (near-identical) training log-probs.
+        """
         null = self._per_center_null.get(center) or self._global_null
         if null is None:
             return float('nan')
         mean, std = null
+        # Floor std at a fraction of the global std to avoid division by near-zero
+        if self._global_null is not None:
+            std = max(std, 0.1 * self._global_null[1])
         return (log_prob - mean) / std
 
     def score_window(self, window: tuple) -> WindowScore:
         """Score a single window tuple."""
         prob, tier = self.lookup_prob(window)
-        lp = math.log(prob) if prob > 0 else self.floor
+        lp = max(math.log(prob), self.floor) if prob > 0 else self.floor
         center = window[len(window) // 2]
         return WindowScore(
             window=window,
