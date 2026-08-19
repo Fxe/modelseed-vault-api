@@ -80,14 +80,9 @@ class QuintuplePairBuilder:
         self.fc_adj_pairs: dict = {}
         self.fc_adj_5tuples: dict = {}
 
-    # ------------------------------------------------------------------
-    def add(self, file_ec: Path, file_chain: Path) -> None:
+    def add_genome(self, genome_id, feature_chain, feature_ec) -> None:
         """Ingest one genome's ec + chain files."""
-        genome_h = file_ec.stem
-        with open(file_ec) as fh:
-            feature_ec = json.load(fh)
-        with open(file_chain) as fh:
-            feature_chain = json.load(fh)
+        genome_h = genome_id
 
         edges = [o for o in feature_chain if o['type'] == 'ADJACENT_TO']
         triples, quintuples = build_windows_from_edges(
@@ -117,6 +112,17 @@ class QuintuplePairBuilder:
                 self.fc_adj_5tuples[key].append(genome_h)
             else:
                 self.fc_adj_5tuples[key] = [genome_h]
+
+    # ------------------------------------------------------------------
+    def add(self, file_ec: Path, file_chain: Path) -> None:
+        """Ingest one genome's ec + chain files."""
+        genome_h = file_ec.stem
+        with open(file_ec) as fh:
+            feature_ec = json.load(fh)
+        with open(file_chain) as fh:
+            feature_chain = json.load(fh)
+
+        self.add_genome(genome_h, feature_chain, feature_ec)
 
 
 class TriplePairBuilder:
